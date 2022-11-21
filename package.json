@@ -1,0 +1,25 @@
+{
+  "name": "ave-scheduler",
+  "version": "1.0.1",
+  "description": "",
+  "main": "./lib/index.js",
+  "scripts": {
+    "dev": "nodemon"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pestsov-v/ave-scheduler.git"
+  },
+  "author": "Vladyslav Pestsov <pestsov.js@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pestsov-v/ave-scheduler/issues"
+  },
+  "homepage": "https://github.com/pestsov-v/ave-scheduler#readme",
+  "devDependencies": {
+    "@types/node": "^18.11.9",
+    "nodemon": "^2.0.20",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.3"
+  }
+}
