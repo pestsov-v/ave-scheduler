@@ -1,3 +1,5 @@
+import {WorkerPoolOptions} from "workerpool";
+
 export const enum EventName {
     SET = 'set',
     SUCCESS = 'success',
@@ -25,6 +27,7 @@ export interface IScheduler<K, V extends SchedulerPayload> {
 }
 
 export type Options = {
+    workers?: WorkerPoolOptions
     periodicity?: number
 }
 
@@ -57,7 +60,6 @@ export type CurrentDate = {
     eYear: number,
 
 }
-
 
 type MinutelyPayload =Pick<SchedulerDate, 'seconds'>
 type HourlyPayload = Pick<SchedulerDate, 'seconds' | 'minutes'>

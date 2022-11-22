@@ -1,4 +1,5 @@
 import events from 'events'
+import workerpool, {WorkerPool} from 'workerpool'
 import {
     Options,
     OnError,
@@ -11,7 +12,8 @@ import {
     SchedulerPayload,
     WeeklyPayload,
     CurrentDate,
-} from "../types/scheduler";
+} from "../types";
+import logger from "./logger";
 
 class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements IScheduler<K, V> {
     private readonly _PERIODICITY: number
@@ -19,13 +21,18 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
     private readonly _interval: NodeJS.Timeout
     private readonly _emitter: NodeJS.EventEmitter
     private readonly _scheduler: Map<K, number>
+    private readonly _workers: WorkerPool | undefined
 
-    constructor(options?: Options) {
+    constructor(options: Options = {}) {
         super()
-        this._PERIODICITY = options?.periodicity ?? 1000
+        this._PERIODICITY = options.periodicity ?? 1000
         this._interval = setInterval(() => this._execute(), this._PERIODICITY)
         this._emitter = new events.EventEmitter()
         this._scheduler = new Map()
+
+        if (options.workers) {
+            this._workers = workerpool.pool(options.workers)
+        }
 
         this._interval.unref()
     }
@@ -79,8 +86,10 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
 
             if (now >= execTime) {
                 try {
-                    let result = await task.job(task.args)
-                    if (result === undefined) result = null
+                    let result = this._workers
+                        ? await this._workers.exec(task.job, task.args)
+                        : await task.job(task.args)
+                    if (result === undefined || result === null) result = null
                     this._scheduler.set(key, this._getNextExecTime(execTime, task.time.kind, key))
 
                     this._emitter.emit(EventName.SUCCESS, key, {
@@ -88,7 +97,8 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
                         result,
                         time: new Date()
                     })
-                } catch (e) {
+                } catch (e: unknown) {
+                    logger.error(e as string)
                     this._emitter.emit(EventName.ERROR, key, {
                         task,
                         time: new Date(),
