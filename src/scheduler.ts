@@ -9,6 +9,8 @@ import {
     IScheduler,
     SchedulerKind,
     SchedulerPayload,
+    WeeklyPayload,
+    CurrentDate,
 } from "../types/scheduler";
 
 class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements IScheduler<K, V> {
@@ -45,7 +47,7 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
         this._emitter.removeListener(event, listener);
     }
 
-    public set<FN, ARGS>(key: K, value: V): this {
+    public set(key: K, value: V): this {
         this._emitter.emit(EventName.SET, key, value)
         this._scheduler.set(key, this._getExecTime(value.time, key))
         return super.set(key, value)
@@ -70,19 +72,17 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
         const now = Date.now()
 
         for (const [key, execTime] of this._scheduler) {
-            console.log('now', new Date(now))
-            console.log('exe', new Date(execTime))
             const task = this.get(key)
             if (!task) {
-                return
+                throw new Error(`Task "${key}" not found`)
             }
 
             if (now >= execTime) {
                 try {
-                    const result = await task.job(task.args)
+                    let result = await task.job(task.args)
+                    if (result === undefined) result = null
                     this._scheduler.set(key, this._getNextExecTime(execTime, task.time.kind, key))
 
-                    console.log('result', result)
                     this._emitter.emit(EventName.SUCCESS, key, {
                         task,
                         result,
@@ -101,51 +101,50 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
     }
 
     private _getExecTime(timer: TimeKind, key: K): number {
-        const currentDate = new Date()
+        let {eSeconds, eMinutes, eHours, eDays, eWeekDay, eMonth, eYear} = this._getCurrentDate()
 
-        let executeSeconds = currentDate.getSeconds()
-        let executeMinutes = currentDate.getMinutes()
-        let executeHours = currentDate.getHours()
-        let executeDay = currentDate.getDate()
-        let executeWeeklyDay = currentDate.getDay()
-        let executeMonth = currentDate.getMonth()
-        let executeYear = currentDate.getFullYear()
+
+        if (timer.kind === SchedulerKind.WEEKLY) {
+            const weeklyDiff = this._getWeeklyDiff(timer.time)
+            eWeekDay = eDays + weeklyDiff
+        }
 
         switch (timer.kind) {
             case SchedulerKind.MINUTELY:
-                if (executeSeconds > timer.time.seconds) executeMinutes += 1
-                executeSeconds = timer.time.seconds
+                if (eSeconds > timer.time.seconds) eMinutes += 1
+                eSeconds = timer.time.seconds
                 break
             case SchedulerKind.HOURLY:
-                if (executeMinutes > timer.time.minutes) executeHours += 1;
-                executeMinutes = timer.time.minutes;
-                executeSeconds = timer.time.seconds;
+                if (eMinutes > timer.time.minutes) eHours += 1;
+                eMinutes = timer.time.minutes;
+                eSeconds = timer.time.seconds;
                 break;
             case SchedulerKind.DAILY:
-                if (executeHours > timer.time.hours) executeDay += 1;
-                executeHours = timer.time.hours;
-                executeMinutes = timer.time.minutes;
-                executeSeconds = timer.time.seconds;
+                if (eHours > timer.time.hours) eDays += 1;
+                eHours = timer.time.hours;
+                eMinutes = timer.time.minutes;
+                eSeconds = timer.time.seconds;
                 break;
             case SchedulerKind.WEEKLY:
-                executeSeconds = timer.time.seconds;
-                executeMinutes = timer.time.minutes;
-                executeHours = timer.time.hours;
+                eSeconds = timer.time.seconds;
+                eMinutes = timer.time.minutes;
+                eHours = timer.time.hours;
+                eDays = new Date(eYear, eMonth, eWeekDay).getDate()
                 break;
             case SchedulerKind.YEARLY:
-                if (executeMonth > timer.time.month) executeYear += 1;
-                executeMonth = timer.time.month;
-                executeDay = timer.time.days;
-                executeHours = timer.time.hours;
-                executeMinutes = timer.time.minutes;
-                executeSeconds = timer.time.seconds;
+                if (eMonth > timer.time.month) eYear += 1;
+                eMonth = timer.time.month;
+                eDays = timer.time.days;
+                eHours = timer.time.hours;
+                eMinutes = timer.time.minutes;
+                eSeconds = timer.time.seconds;
                 break;
             case SchedulerKind.DISPOSABLE:
-                executeMonth = timer.time.month;
-                executeDay = timer.time.days;
-                executeHours = timer.time.hours;
-                executeMinutes = timer.time.minutes;
-                executeSeconds = timer.time.seconds;
+                eMonth = timer.time.month;
+                eDays = timer.time.days;
+                eHours = timer.time.hours;
+                eMinutes = timer.time.minutes;
+                eSeconds = timer.time.seconds;
                 break;
             case SchedulerKind.INTERVAL:
                 return timer.time.seconds;
@@ -153,7 +152,7 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
                 return new Date(3000, 0 ,1).getTime()
         }
 
-        const executeDate = new Date(executeYear, executeMonth, executeDay, executeHours, executeMinutes, executeSeconds)
+        const executeDate = new Date(eYear, eMonth, eDays, eHours, eMinutes, eSeconds)
 
         this._emitter.emit(EventName.FIRST_EXECUTE, key, {
             date: new Date(executeDate),
@@ -206,55 +205,31 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
         return nextTime;
     }
 
+    private _getWeeklyDiff(date: WeeklyPayload): number {
+        const {eYear, eMonth, eHours, eMinutes, eSeconds, eDays} = this._getCurrentDate()
 
+        const cWeeklyDay = new Date(eYear, eMonth, eDays).getDay()
+        const eWeeklyDay = new Date(eYear, eMonth, date.weeklyDay - 1).getDay()
+
+        const cTime = new Date(eYear, eMonth, cWeeklyDay, eHours, eMinutes, eSeconds)
+        const eTime = new Date(eYear, eMonth, eWeeklyDay, date.hours, date.minutes, date.seconds)
+
+        return cTime > eTime ? (7 - (cWeeklyDay - eWeeklyDay)) : (eWeeklyDay - cWeeklyDay)
+    }
+
+    private _getCurrentDate(): CurrentDate  {
+        const currentDate = new Date()
+
+        return {
+            eSeconds:  currentDate.getSeconds(),
+            eMinutes: currentDate.getMinutes(),
+            eHours: currentDate.getHours(),
+            eDays: currentDate.getDate(),
+            eWeekDay: currentDate.getDay(),
+            eMonth: currentDate.getMonth(),
+            eYear: currentDate.getFullYear(),
+        }
+    }
 }
 
 export default Scheduler
-
-// private _getWeeklyDiff(date: WeeklyKind) {
-//
-// }
-
-// private getWeeklyDiff(date: WeeklyPayload) {
-//     const currentDate = new Date();
-//
-//     const executeYear = getYear(currentDate);
-//     const executeMonth = getMonth(currentDate);
-//     const executeHours = getHours(currentDate);
-//     const executeMinutes = getMinutes(currentDate);
-//     const executeSeconds = getSeconds(currentDate);
-//
-//     const currentWeeklyDay = getDay(
-//         new Date(executeYear, executeMonth, getDate(currentDate))
-//     );
-//     const executeWeeklyDay = getDay(
-//         new Date(executeYear, executeMonth, date.weeklyDay - 1)
-//     );
-//
-//     const currentTime = milliseconds({
-//         years: executeYear,
-//         months: executeMonth,
-//         days: currentWeeklyDay,
-//         hours: executeHours,
-//         minutes: executeMinutes,
-//         seconds: executeSeconds,
-//     });
-//
-//     const executeTime = milliseconds({
-//         years: executeYear,
-//         months: executeMonth,
-//         days: executeWeeklyDay,
-//         hours: date.hours,
-//         minutes: date.minutes,
-//         seconds: date.seconds,
-//     });
-//
-//     let weeklyDiff = 1;
-//     if (currentTime > executeTime) {
-//         weeklyDiff = 7 - (currentWeeklyDay - executeWeeklyDay);
-//     } else {
-//         weeklyDiff *= executeWeeklyDay - currentWeeklyDay;
-//     }
-//
-//     return weeklyDiff;
-// }

@@ -29,14 +29,14 @@ export type Options = {
 }
 
 export const enum SchedulerKind {
-    MINUTELY = 'M',
-    HOURLY = 'H',
-    DAILY = 'D',
-    WEEKLY = 'W',
-    MONTHLY = 'M',
-    YEARLY = 'Y',
-    INTERVAL = 'I',
-    DISPOSABLE = 'P'
+    MINUTELY = 'MIN',
+    HOURLY = 'HOU',
+    DAILY = 'DAY',
+    WEEKLY = 'WEE',
+    MONTHLY = 'MON',
+    YEARLY = 'YEA',
+    INTERVAL = 'INT',
+    DISPOSABLE = 'DIS'
 }
 
 type SchedulerDate = {
@@ -47,33 +47,51 @@ type SchedulerDate = {
     month: number
 }
 
+export type CurrentDate = {
+    eSeconds: number
+    eMinutes: number,
+    eHours: number,
+    eDays: number,
+    eWeekDay: number
+    eMonth: number
+    eYear: number,
+
+}
+
+
+type MinutelyPayload =Pick<SchedulerDate, 'seconds'>
+type HourlyPayload = Pick<SchedulerDate, 'seconds' | 'minutes'>
+type DailyPayload = Pick<SchedulerDate, 'seconds' | 'minutes' | 'hours'>
+export type WeeklyPayload = Pick<SchedulerDate, 'seconds' | 'minutes' | 'hours'> & {weeklyDay: number}
+type MonthPayload = Omit<SchedulerDate, 'month'>
+
 interface ISchedulerKind {
     kind: SchedulerKind
 }
 
 interface MinutelyKind extends ISchedulerKind {
     kind: SchedulerKind.MINUTELY
-    time: Pick<SchedulerDate, 'seconds'>
+    time: MinutelyPayload
 }
 
 interface HourlyKind extends ISchedulerKind {
     kind: SchedulerKind.HOURLY
-    time: Pick<SchedulerDate, 'seconds' | 'minutes'>
+    time: HourlyPayload
 }
 
 interface DailyKind extends ISchedulerKind {
     kind: SchedulerKind.DAILY
-    time: Pick<SchedulerDate, 'seconds' | 'minutes' | 'hours'>
+    time: DailyPayload
 }
 
 interface WeeklyKind extends ISchedulerKind {
     kind: SchedulerKind.WEEKLY
-    time: Pick<SchedulerDate, 'seconds' | 'minutes' | 'hours'> & { weeklyDay: number }
+    time: WeeklyPayload
 }
 
 interface MonthlyKind extends ISchedulerKind {
     kind: SchedulerKind.MONTHLY
-    time: Pick<SchedulerDate, 'seconds' | 'minutes' | 'hours' | 'days'>
+    time: MonthPayload
 }
 
 interface YearlyKind extends ISchedulerKind {
@@ -102,10 +120,9 @@ type TimeKind =
     | DisposableKind
 
 export type SchedulerPayload = {
-    args?: any[]
-    job: (...args: any) => any
+    args?: any
+    job: (...args: any[]) => any
     time: TimeKind
-    [key: string]: any
 }
 
 export type TimePayload = {
