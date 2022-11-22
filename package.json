@@ -1,11 +1,18 @@
 {
   "name": "ave-scheduler",
-  "version": "1.0.1",
+  "version": "0.0.1",
   "description": "",
   "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
   "scripts": {
-    "dev": "nodemon"
+    "dev": "nodemon",
+    "build": "tsc",
+    "publish": "npm publish && echo \"Successfully released version $npm_package_version.\""
   },
+  "files": [
+    "lib/**/*",
+    "types/**/*"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pestsov-v/ave-scheduler.git"
