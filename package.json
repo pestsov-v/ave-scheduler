@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
-    "publish": "npm publish && echo \"Successfully released version $npm_package_version.\""
+    "publish": "npm publish && echo \"Successfully released version $npm_package_version.\"",
+    "init:docs": "docsify init ./docs",
+    "dev:docs": "docsify serve docs"
   },
   "files": [
     "lib/**/*",
@@ -26,6 +28,8 @@
   "devDependencies": {
     "@types/node": "^18.11.9",
     "@types/workerpool": "^6.1.0",
+    "docsify": "^4.13.0",
+    "docsify-cli": "^4.4.4",
     "nodemon": "^2.0.20",
     "ts-node": "^10.9.1",
     "typescript": "^4.9.3"
