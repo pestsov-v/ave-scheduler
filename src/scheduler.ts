@@ -1,12 +1,14 @@
 import events from 'events'
 import {
-    EventName,
-    IScheduler,
     Options,
+    OnError,
+    OnSuccess,
+    EventName,
+    TimeKind,
+    TimePayload,
+    IScheduler,
     SchedulerKind,
     SchedulerPayload,
-    TimeKind,
-    TimePayload
 } from "../types/scheduler";
 
 class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements IScheduler<K, V> {
@@ -28,7 +30,8 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
 
     public on(event: 'first', listener: (key: K, val: TimePayload) => void): void
     public on(event: 'next', listener: (key: K, val: TimePayload) => void): void
-    public on(event: 'success', listener: (key: K, val?: V) => void): void;
+    public on<T = unknown>(event: 'success', listener: (key: K, val: OnSuccess<T>) => void): void;
+    public on<T = unknown>(event: 'error', listener: (key: K, val: OnError<T>) => void): void;
     public on(event: 'delete', listener: (key: K) => void): void;
     public on(event: string | symbol, listener: (...args: any[]) => void): void {
         this._emitter.on(event, listener);
@@ -42,7 +45,7 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
         this._emitter.removeListener(event, listener);
     }
 
-    public set(key: K, value: V): this {
+    public set<FN, ARGS>(key: K, value: V): this {
         this._emitter.emit(EventName.SET, key, value)
         this._scheduler.set(key, this._getExecTime(value.time, key))
         return super.set(key, value)
@@ -63,27 +66,38 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
         this.clear()
     }
 
-    private _execute(): void {
+    private async _execute(): Promise<void> {
         const now = Date.now()
 
-        this._scheduler.forEach((execTime, key) => {
+        for (const [key, execTime] of this._scheduler) {
+            console.log('now', new Date(now))
+            console.log('exe', new Date(execTime))
             const task = this.get(key)
             if (!task) {
-                throw new Error(`Task "${key}" not found`)
+                return
             }
 
             if (now >= execTime) {
                 try {
-                    task.job(task.args)
-                    this._emitter.emit(EventName.TIMEOUT, key)
-                    this._scheduler.set(key, this._getNextExecTime(execTime, task.time.kind ,key))
-                    this._emitter.emit(EventName.SUCCESS, key, task)
+                    const result = await task.job(task.args)
+                    this._scheduler.set(key, this._getNextExecTime(execTime, task.time.kind, key))
+
+                    console.log('result', result)
+                    this._emitter.emit(EventName.SUCCESS, key, {
+                        task,
+                        result,
+                        time: new Date()
+                    })
                 } catch (e) {
-                    this._emitter.emit(EventName.ERROR, key, task)
-                    console.log('2')
+                    this._emitter.emit(EventName.ERROR, key, {
+                        task,
+                        time: new Date(),
+                        message: e
+                    })
                 }
+                this._scheduler.delete(key)
             }
-        })
+        }
     }
 
     private _getExecTime(timer: TimeKind, key: K): number {
@@ -191,11 +205,15 @@ class Scheduler<K, V extends SchedulerPayload> extends Map<K, V> implements ISch
         })
         return nextTime;
     }
+
+
 }
 
 export default Scheduler
 
-
+// private _getWeeklyDiff(date: WeeklyKind) {
+//
+// }
 
 // private getWeeklyDiff(date: WeeklyPayload) {
 //     const currentDate = new Date();

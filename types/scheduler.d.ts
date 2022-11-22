@@ -2,16 +2,16 @@ export const enum EventName {
     SET = 'set',
     SUCCESS = 'success',
     ERROR = 'error',
-    TIMEOUT = 'timeout',
     DELETE = 'delete',
     NEXT_EXECUTE = 'next',
     FIRST_EXECUTE = 'first',
 }
 
-export interface IScheduler<K, V> {
+export interface IScheduler<K, V extends SchedulerPayload> {
     on(event: 'first', listener: (key: K, val: TimePayload) => void): void
     on(event: 'next', listener: (key: K, val: TimePayload) => void): void
-    on(event: 'success', listener: (key: K, val?: V) => void): void;
+    on<T = unknown>(event: 'success', listener: (key: K, val?: OnSuccess<T>) => void): void;
+    on<T = unknown>(event: 'error', listener: (key: K, val?: OnError<T>) => void): void;
     on(event: 'delete', listener: (key: K) => void): void;
     on(event: string | symbol, listener: (...args: any[]) => void): void
 
@@ -102,7 +102,7 @@ type TimeKind =
     | DisposableKind
 
 export type SchedulerPayload = {
-    args?: Record<string, unknown>
+    args?: any[]
     job: (...args: any) => any
     time: TimeKind
     [key: string]: any
@@ -112,4 +112,16 @@ export type TimePayload = {
     timestamp: number
     date: Date
     kind: SchedulerKind
+}
+
+export type OnError<T> = {
+    task: SchedulerPayload;
+    time: Date;
+    message: T;
+}
+
+export type OnSuccess<T> = {
+    task: SchedulerPayload;
+    time: Date;
+    result: T;
 }
